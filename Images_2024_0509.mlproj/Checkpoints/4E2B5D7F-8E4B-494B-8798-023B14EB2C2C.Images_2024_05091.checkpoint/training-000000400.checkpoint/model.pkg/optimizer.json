@@ -1,0 +1,1 @@
+[{"stepSize":0.43657075872637791,"point":{"strides":[1],"scalar":"double","shape":[10245],"index":0},"stopped":false,"hessian":{"shape":[0,0],"scalars":[]},"gradient":{"strides":[1],"scalar":"double","shape":[10245],"index":1},"value":0.192951148036037,"residual":15.1544536118164}]
