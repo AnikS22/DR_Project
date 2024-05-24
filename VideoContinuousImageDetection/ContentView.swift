@@ -17,7 +17,15 @@ class VideoCapture: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     let model = Images_2024_0509_1()
     
     @Published var processedText: String = ""
-
+    let displayMap = ["Zoom_In":"Get Closer",
+                      "DR_1":"Dx: Stage 1 DR",
+                      "DR_2":"Dx: Stage 2 DR",
+                      "DR_3":"Dx: Stage 3 DR",
+                      "DR_4":"Dx: Stage 4 DR",
+                      "DR_Healthy":"You Have No DR",
+    ];
+    
+    
     override init() {
         super.init()
         self.setupCaptureSession()
@@ -73,8 +81,12 @@ class VideoCapture: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         do {
             let prediction = try self.model.prediction(image: pixelBuffer).target
             DispatchQueue.main.async {
-                self.processedText = "Prediction: \(prediction)"
-                print("\(prediction)")
+                
+                let visiblePrediction = self.displayMap [prediction,default: prediction]
+               // self.processedText = "Prediction: \(prediction)"
+                self.processedText = visiblePrediction
+
+                print("CaptureOutPut: \(prediction) => \(visiblePrediction)")
             }
         } catch {
             print("Error processing frame: \(error)")
