@@ -291,7 +291,7 @@
 				DEVELOPMENT_TEAM = 92VSDV995W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Get the image for analysis";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture retinal images for diabetic retinopathy screening and early detection analysis.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -322,7 +322,7 @@
 				DEVELOPMENT_TEAM = 92VSDV995W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Get the image for analysis";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is required to capture retinal images for diabetic retinopathy screening and early detection analysis.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

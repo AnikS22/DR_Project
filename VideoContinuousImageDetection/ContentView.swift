@@ -2,149 +2,235 @@
 //  ContentView.swift
 //  VideoContinuousImageDetection
 //
+//  Early Detection of Diabetic Retinopathy
 //  Created by Danika Gupta on 3/12/24.
 //
 
 import AVFoundation
 import SwiftUI
 
+/// Manages video capture and real-time image classification for diabetic retinopathy detection
 class VideoCapture: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+    
+    // MARK: - Properties
+    
     var captureSession: AVCaptureSession?
     let videoOutput = AVCaptureVideoDataOutput()
     let sessionQueue = DispatchQueue(label: "sessionQueue")
-    //let model = DRDetection_1()
-//let model = DR_Image_Classifer_1()
+    
+    /// Core ML model for diabetic retinopathy classification
+    /// Alternative models available: DRDetection_1(), DR_Image_Classifer_1()
     let model = Images_2024_0509_1()
     
     @Published var processedText: String = ""
-    let displayMap = ["Zoom_In":"Get Closer",
-                      "DR_1":"Dx: Stage 1 DR",
-                      "DR_2":"Dx: Stage 2 DR",
-                      "DR_3":"Dx: Stage 3 DR",
-                      "DR_4":"Dx: Stage 4 DR",
-                      "DR_Healthy":"You Have No DR",
-    ];
+    @Published var isAnalyzing: Bool = false
     
+    /// Maps model predictions to user-friendly diagnostic messages
+    let displayMap: [String: String] = [
+        "Zoom_In": "Please move closer for better image quality",
+        "DR_1": "Early Stage DR Detected - Stage 1",
+        "DR_2": "Moderate DR Detected - Stage 2",
+        "DR_3": "Severe DR Detected - Stage 3",
+        "DR_4": "Proliferative DR Detected - Stage 4",
+        "DR_Healthy": "No Diabetic Retinopathy Detected"
+    ]
+    
+    // MARK: - Initialization
     
     override init() {
         super.init()
         self.setupCaptureSession()
     }
-
+    
+    // MARK: - Camera Setup
+    
+    /// Configures the camera session for video capture
     private func setupCaptureSession() {
         let session = AVCaptureSession()
         session.beginConfiguration()
-
+        
         guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
               let videoDeviceInput = try? AVCaptureDeviceInput(device: videoDevice),
               session.canAddInput(videoDeviceInput) else {
+            print("Error: Unable to access camera")
             return
         }
-
+        
         session.addInput(videoDeviceInput)
-
+        
         if session.canAddOutput(videoOutput) {
             session.addOutput(videoOutput)
             videoOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "videoQueue"))
             videoOutput.alwaysDiscardsLateVideoFrames = true
             videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
         }
-
+        
         session.commitConfiguration()
         self.captureSession = session
     }
-
+    
+    // MARK: - Session Control
+    
     func startSession() {
         sessionQueue.async {
             self.captureSession?.startRunning()
-        }
-    }
-
-    func stopSession() {
-        sessionQueue.async {
-            self.captureSession?.stopRunning()
-        }
-    }
-
-    func captureOutputPrev(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        // Process each video frame here
-        DispatchQueue.main.async {
-            self.processedText = "Frame captured"
+            DispatchQueue.main.async {
+                self.isAnalyzing = true
+            }
         }
     }
     
+    func stopSession() {
+        sessionQueue.async {
+            self.captureSession?.stopRunning()
+            DispatchQueue.main.async {
+                self.isAnalyzing = false
+                self.processedText = ""
+            }
+        }
+    }
+    
+    // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
+    
+    /// Processes each video frame for real-time classification
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             return
         }
-
+        
         do {
             let prediction = try self.model.prediction(image: pixelBuffer).target
             DispatchQueue.main.async {
-                
-                let visiblePrediction = self.displayMap [prediction,default: prediction]
-               // self.processedText = "Prediction: \(prediction)"
+                let visiblePrediction = self.displayMap[prediction] ?? prediction
                 self.processedText = visiblePrediction
-
-                print("CaptureOutPut: \(prediction) => \(visiblePrediction)")
             }
         } catch {
-            print("Error processing frame: \(error)")
+            DispatchQueue.main.async {
+                print("Error processing frame: \(error.localizedDescription)")
+            }
         }
     }
-    
 }
 
+// MARK: - Camera Preview
+
+/// SwiftUI wrapper for camera preview layer
 struct CameraPreview: UIViewRepresentable {
     @ObservedObject var videoCapture: VideoCapture
     
-    func makeUIViewOld(context: Context) -> UIView {
-        let view = UIView(frame: UIScreen.main.bounds)
-        let previewLayer = AVCaptureVideoPreviewLayer(session: videoCapture.captureSession!)
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: CGRect(
+            x: 0,
+            y: 0,
+            width: UIScreen.main.bounds.width,
+            height: UIScreen.main.bounds.height * 0.70
+        ))
+        
+        guard let captureSession = videoCapture.captureSession else {
+            return view
+        }
+        
+        let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
         previewLayer.frame = view.bounds
         previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
+        
         return view
     }
     
-    func makeUIView(context: Context) -> UIView {
-            let view = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.height * 0.70)) // Adjust the height to 75% of the screen height
-            let previewLayer = AVCaptureVideoPreviewLayer(session: videoCapture.captureSession!)
-            previewLayer.frame = view.bounds
-            previewLayer.videoGravity = .resizeAspectFill
-            view.layer.addSublayer(previewLayer)
-            return view
+    func updateUIView(_ uiView: UIView, context: Context) {
+        // Update preview layer frame if needed
+        if let previewLayer = uiView.layer.sublayers?.first as? AVCaptureVideoPreviewLayer {
+            previewLayer.frame = uiView.bounds
         }
-    
-    func updateUIView(_ uiView: UIView, context: Context) {}
+    }
 }
+
+// MARK: - Main View
 
 struct ContentView: View {
     @ObservedObject var videoCapture = VideoCapture()
-    @State var isRecording = false
+    @State private var isSessionActive = false
     
     var body: some View {
-        VStack {
-            Text("DR Diagnosis")
-                .font(.system(size: 40))
-            Text(videoCapture.processedText)
+        VStack(spacing: 20) {
+            // Header
+            VStack(spacing: 8) {
+                Text("Diabetic Retinopathy")
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundColor(.primary)
+                
+                Text("Early Detection System")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.top, 20)
+            
+            // Diagnostic Result
+            VStack(spacing: 8) {
+                if !videoCapture.processedText.isEmpty {
+                    Text(videoCapture.processedText)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(diagnosticColor(for: videoCapture.processedText))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                } else if isSessionActive {
+                    Text("Analyzing...")
+                        .font(.system(size: 18))
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Tap Start to begin analysis")
+                        .font(.system(size: 16))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(minHeight: 60)
+            .padding()
+            
+            // Camera Preview
             CameraPreview(videoCapture: videoCapture)
-                .padding()
+                .cornerRadius(12)
+                .padding(.horizontal)
+            
+            Spacer()
+            
+            // Control Button
             Button(action: {
-                if isRecording {
+                if isSessionActive {
                     videoCapture.stopSession()
                 } else {
                     videoCapture.startSession()
                 }
-                isRecording.toggle()
-                videoCapture.processedText = ""
+                isSessionActive.toggle()
             }) {
-                Image(systemName: isRecording ? "record.circle" : "record.circle.fill")
-                    .resizable()
-                    .frame(width: 50, height: 50)
-                    .foregroundColor(isRecording ? .red : .gray)
+                HStack {
+                    Image(systemName: isSessionActive ? "stop.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 24))
+                    Text(isSessionActive ? "Stop Analysis" : "Start Analysis")
+                        .font(.system(size: 18, weight: .semibold))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(isSessionActive ? Color.red : Color.blue)
+                .cornerRadius(12)
             }
-            .padding()
+            .padding(.horizontal, 40)
+            .padding(.bottom, 30)
+        }
+        .background(Color(.systemBackground))
+    }
+    
+    /// Returns appropriate color based on diagnostic result
+    private func diagnosticColor(for text: String) -> Color {
+        if text.contains("No Diabetic Retinopathy") {
+            return .green
+        } else if text.contains("Early Stage") {
+            return .orange
+        } else if text.contains("Detected") {
+            return .red
+        } else {
+            return .blue
         }
     }
 }
